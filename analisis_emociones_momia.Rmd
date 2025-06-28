@@ -43,46 +43,40 @@ texto_narrativo <- paste(texto_narrativo, collapse = " ")
 ## ☁️ Nube de palabras emocionales
 
 ```{r}
-datos <- tibble(texto = texto) %>%
-  unnest_tokens(palabra, texto) %>%
-  anti_join(stop_words %>% filter(lexicon == "snowball"), by = c("palabra" = "word")) %>%
-  filter(nchar(palabra) > 4) %>%
-  count(palabra, name = "frecuencia") %>%
-  arrange(desc(frecuencia))
-
-ggplot(datos, aes(
+ggplot(datos %>% slice_max(frecuencia, n = 120), aes(
   label = palabra,
   size = frecuencia,
   color = frecuencia
 )) +
   geom_text_wordcloud_area(shape = "circle", rm_outside = TRUE) +
-  scale_size_area(max_size = 12) +
+  scale_size_area(max_size = 16) +
   scale_color_gradient(low = "#1a9641", high = "#d7191c") +
   theme_minimal() +
-  labs(title = "Nube de palabras emocionales")
+  labs(title = "Nube de palabras emocionales (top 120)")
+
 ```
 
 ## ⚖️ Análisis de polaridad emocional
 
 ```{r}
 
-# 2. Dividir en oraciones
+# 1. Dividir en oraciones
 oraciones <- get_sentences(texto_narrativo)
 
-# 3. Obtener emociones NRC en español por oración
+# 2. Obtener emociones NRC en español por oración
 emociones <- get_nrc_sentiment(oraciones, lang = "spanish")
 
-# 4. Calcular polaridad: positivo - negativo
+# 3. Calcular polaridad: positivo - negativo
 polaridad <- emociones$positive - emociones$negative
 
-# 5. Verificar que haya variación emocional
+# 4. Verificar que haya variación emocional
 if (length(polaridad) > 2 && any(is.finite(polaridad)) && sd(polaridad) > 0) {
   # Aplicar suavizado con DCT
   arco <- get_dct_transform(polaridad,
                             low_pass_size = min(length(polaridad), 20),
                             scale_range = TRUE)
 
-  # 6. Graficar arco emocional
+  # 5. Graficar arco emocional
   plot(arco, type = "l", col = "darkgreen", lwd = 2,
        main = "Arco emocional de 'Conversación con una momia'",
        xlab = "Progresión narrativa", ylab = "Polaridad emocional")
@@ -103,69 +97,53 @@ barplot(emociones_sum, las = 2, col = rainbow(8), main = "Conteo de emociones NR
 ## 🕸️ Red de palabras (coocurrencia)
 
 ```{r}
-# Tokenizar oraciones
+# Tokenizar en oraciones
 oraciones <- unlist(tokenize_sentences(texto))
 
-# Definir stopwords completas y personalizadas
-stopwords_es <- stopwords("es", source = "snowball")
+# Crear corpus y procesar
+corpus <- VCorpus(VectorSource(oraciones))
+corpus <- tm_map(corpus, content_transformer(tolower))
+corpus <- tm_map(corpus, removePunctuation)
+corpus <- tm_map(corpus, removeNumbers)
+corpus <- tm_map(corpus, removeWords, stopwords("es"))
+corpus <- tm_map(corpus, stripWhitespace)
+corpus <- tm_map(corpus, stemDocument, language = "spanish")
 
-# Procesar texto
-procesar_texto <- function(texto) {
-  corpus <- VCorpus(VectorSource(texto))
-  corpus <- tm_map(corpus, content_transformer(tolower))
-  corpus <- tm_map(corpus, removePunctuation)
-  corpus <- tm_map(corpus, removeNumbers)
-  corpus <- tm_map(corpus, removeWords, stopwords_es)
-  corpus <- tm_map(corpus, stemDocument, language = "spanish")
-  corpus <- tm_map(corpus, stripWhitespace)
-  return(corpus)
-}
-
-corpus_procesado <- procesar_texto(oraciones)
-
-# Term-Document Matrix
-tdm <- TermDocumentMatrix(corpus_procesado)
+# Matriz término-documento
+tdm <- TermDocumentMatrix(corpus)
 mat <- as.matrix(tdm)
 
-# Filtrar palabras frecuentes y largas
+# Seleccionar top 40 palabras más frecuentes
 frecuencias <- rowSums(mat)
-top_terminos <- sort(frecuencias, decreasing = TRUE)
-top_nombres <- names(top_terminos[1:100])
-top_nombres <- top_nombres[nchar(top_nombres) >= 4]
+top_terms <- names(sort(frecuencias, decreasing = TRUE))[1:40]
+mat <- mat[top_terms, ]
+mat[mat >= 1] <- 1  # binarizar
 
-# Filtrar matriz
-mat_filtrado <- mat[top_nombres, ]
-mat_filtrado[mat_filtrado >= 1] <- 1
-
-# Coocurrencias
-cooc <- mat_filtrado %*% t(mat_filtrado)
+# Matriz de co-ocurrencia
+cooc <- mat %*% t(mat)
 diag(cooc) <- 0
-cooc[cooc < 1] <- 0
+cooc[cooc < 2] <- 0  # filtrar conexiones débiles
 
-# Grafo
-g <- graph_from_adjacency_matrix(cooc, weighted = TRUE, mode = "max")
+# Crear grafo
+g <- graph.adjacency(cooc, weighted = TRUE, mode = "undirected")
 g <- simplify(g)
 g <- delete_vertices(g, degree(g) == 0)
 
-# Visualizar si hay algo
-if (vcount(g) > 0 && ecount(g) > 0) {
-  set.seed(123)
-  layout <- layout_with_fr(g)
-  
-  plot(g,
-       layout = layout,
-       vertex.size = 6,
-       vertex.label.cex = 0.75,
-       vertex.label.dist = 0.4,
-       vertex.label.color = "black",
-       vertex.color = "lightgray",
-       edge.width = E(g)$weight,
-       edge.color = "gray70",
-       main = "Red de palabras más frecuentes")
-} else {
-  message("⚠️ La red está vacía. Intentá reducir el filtro de stopwords o aumentar el top_n.")
-}
+# Visualización
+set.seed(123)
+layout <- layout_with_fr(g)
 
+plot(
+  g,
+  layout = layout,
+  vertex.size = 8,
+  vertex.label.cex = 0.8,
+  vertex.label.color = "black",
+  vertex.color = "#AED6F1",
+  edge.width = E(g)$weight,
+  edge.color = "gray60",
+  main = "Red de palabras más frecuentes"
+)
 
 ```
 
