@@ -8,7 +8,6 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 # Librerías necesarias
-install.packages("stopwords")
 library(stopwords)
 library(tidyverse)
 library(ggwordcloud)
@@ -22,11 +21,11 @@ library(tidytext)
 library(ggplot2)
 ```
 
-## 📚 Introducción
+## Introducción
 
 Este análisis se basa en la metodología propuesta por Débora Rodrigo-Ruiz (2022), utilizando análisis digital de emociones en textos literarios. Se aplica el análisis al cuento "Conversación con una momia" de Edgar Allan Poe, con el fin de explorar el vocabulario emocional, la polaridad narrativa y los recursos afectivos que intervienen en la construcción del texto.
 
-## 📥 Carga y limpieza del texto
+## Carga y limpieza del texto
 
 ```{r}
 # Versión 1: texto limpio para wordcloud y red (SIN puntuación)
@@ -40,9 +39,18 @@ texto_narrativo <- readLines("Conversacion con una momia.txt", encoding = "UTF-8
 texto_narrativo <- paste(texto_narrativo, collapse = " ")
 ```
 
-## ☁️ Nube de palabras emocionales
+## Nube de palabras emocionales
 
 ```{r}
+stop_words <- get_stopwords(language = "es")
+
+datos <- tibble(texto = texto) %>%
+  unnest_tokens(palabra, texto) %>%
+  anti_join(stop_words, by = c("palabra" = "word")) %>%
+  filter(nchar(palabra) > 4) %>%
+  count(palabra, name = "frecuencia") %>%
+  arrange(desc(frecuencia))
+
 ggplot(datos %>% slice_max(frecuencia, n = 120), aes(
   label = palabra,
   size = frecuencia,
@@ -56,7 +64,36 @@ ggplot(datos %>% slice_max(frecuencia, n = 120), aes(
 
 ```
 
-## ⚖️ Análisis de polaridad emocional
+> La nube de palabras destaca los términos más frecuentes del texto, una vez eliminadas las stopwords. Entre los más prominentes se encuentran “doctor”, “momia”, “conde”, “egipcio”, “usted” y “ponnonner”. El tamaño de cada palabra refleja su frecuencia de aparición.
+
+## Análisis de Polaridad
+
+```{r}
+oraciones <- get_sentences(texto_narrativo)
+polaridad <- get_sentiment(oraciones, method = "syuzhet", lang = "spanish")
+
+ggplot(data = data.frame(posicion = seq_along(polaridad), polaridad), 
+       aes(x = posicion, y = polaridad)) +
+  geom_line(color = "steelblue") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray") +
+  labs(title = "Análisis de polaridad narrativa",
+       x = "Progresión del texto", y = "Polaridad emocional") +
+  theme_minimal()
+```
+
+> La polaridad del texto oscila entre valores positivos y negativos, con una tendencia en general hacia la zona neutral. Sin embargo, hay picos negativos muy marcados en algunas secciones, así como picos positivos en algunas escenas.
+
+## Conteo de emociones (NRC)
+
+```{r}
+nrc <- get_nrc_sentiment(get_sentences(texto))
+emociones_sum <- colSums(nrc[, 1:8])
+barplot(emociones_sum, las = 2, col = rainbow(8), main = "Conteo de emociones NRC")
+```
+
+> Hay mucho lenguaje que genera expectativa o curiosidad, cosas inesperadas, incomodidad emocional y desagrado físico o moral, así como confianza. Eso se relaciona con escenas donde experimentan con la momia o suceden cosas fuera de lo normal.
+
+## ️Arco Emocional
 
 ```{r}
 
@@ -86,67 +123,81 @@ if (length(polaridad) > 2 && any(is.finite(polaridad)) && sd(polaridad) > 0) {
 }
 ```
 
-## 📊 Conteo de emociones (NRC)
-
-```{r}
-nrc <- get_nrc_sentiment(get_sentences(texto))
-emociones_sum <- colSums(nrc[, 1:8])
-barplot(emociones_sum, las = 2, col = rainbow(8), main = "Conteo de emociones NRC")
-```
+> Una curva suave que resume cómo varía la emoción a lo largo del cuento completo. Empieza neutro, baja en la parte de más tensión (la resurrección y el golpe al doctor), y luego sube un poco hacia el final. Esa caída en el centro del gráfico coincide con el momento perturbador de la historia.
 
 ## 🕸️ Red de palabras (coocurrencia)
 
 ```{r}
-# Tokenizar en oraciones
+# Leer de nuevo el texto y unir el texto completo
+texto <- readLines("Conversacion con una momia.txt", encoding = "UTF-8")
+texto <- paste(texto, collapse = " ")
+
+# Dividir en oraciones
 oraciones <- unlist(tokenize_sentences(texto))
 
-# Crear corpus y procesar
-corpus <- VCorpus(VectorSource(oraciones))
-corpus <- tm_map(corpus, content_transformer(tolower))
-corpus <- tm_map(corpus, removePunctuation)
-corpus <- tm_map(corpus, removeNumbers)
-corpus <- tm_map(corpus, removeWords, stopwords("es"))
-corpus <- tm_map(corpus, stripWhitespace)
-corpus <- tm_map(corpus, stemDocument, language = "spanish")
+# Fragmentar en bloques de 5 oraciones
+fragmentos <- split(oraciones, ceiling(seq_along(oraciones) / 5))
+fragmentos_texto <- sapply(fragmentos, paste, collapse = " ")
 
-# Matriz término-documento
-tdm <- TermDocumentMatrix(corpus)
+# Procesamiento del texto sin stemming para preservar palabras
+procesar_texto <- function(texto) {
+  corpus <- VCorpus(VectorSource(texto))
+  corpus <- tm_map(corpus, content_transformer(tolower))
+  corpus <- tm_map(corpus, removePunctuation)
+  corpus <- tm_map(corpus, removeNumbers)
+  corpus <- tm_map(corpus, removeWords, stopwords("spanish"))
+  corpus <- tm_map(corpus, stripWhitespace)
+  return(corpus)
+}
+
+corpus <- procesar_texto(fragmentos_texto)
+
+# Crear matriz término-documento
+tdm <- TermDocumentMatrix(corpus, control = list(wordLengths = c(4, Inf)))
 mat <- as.matrix(tdm)
 
-# Seleccionar top 40 palabras más frecuentes
+# Filtrar palabras frecuentes
 frecuencias <- rowSums(mat)
-top_terms <- names(sort(frecuencias, decreasing = TRUE))[1:40]
-mat <- mat[top_terms, ]
-mat[mat >= 1] <- 1  # binarizar
+palabras_top <- names(sort(frecuencias, decreasing = TRUE))[1:40]
+mat_filtrado <- mat[palabras_top, ]
 
-# Matriz de co-ocurrencia
-cooc <- mat %*% t(mat)
+# Binarizar y crear matriz de coocurrencia
+mat_bin <- mat_filtrado
+mat_bin[mat_bin >= 1] <- 1
+cooc <- mat_bin %*% t(mat_bin)
 diag(cooc) <- 0
-cooc[cooc < 2] <- 0  # filtrar conexiones débiles
 
-# Crear grafo
+# NO eliminar relaciones débiles: solo eliminar donde TODA la fila es cero
+cooc <- cooc[rowSums(cooc) > 0, colSums(cooc) > 0]
+
+# Crear y visualizar grafo
 g <- graph.adjacency(cooc, weighted = TRUE, mode = "undirected")
 g <- simplify(g)
-g <- delete_vertices(g, degree(g) == 0)
+
+# Atributos visuales
+V(g)$label <- V(g)$name
+V(g)$color <- rgb(0.6, 0.9, 1, alpha = 0.8)
+V(g)$label.color <- "black"
+E(g)$color <- "gray50"
+E(g)$width <- E(g)$weight
 
 # Visualización
 set.seed(123)
 layout <- layout_with_fr(g)
-
-plot(
-  g,
-  layout = layout,
-  vertex.size = 8,
-  vertex.label.cex = 0.8,
-  vertex.label.color = "black",
-  vertex.color = "#AED6F1",
-  edge.width = E(g)$weight,
-  edge.color = "gray60",
-  main = "Red de palabras más frecuentes"
-)
+par(mar = c(0, 0, 2, 0))
+plot(g,
+     layout = layout,
+     vertex.size = 8,
+     vertex.label.cex = 0.9,
+     vertex.label.dist = 0.4,
+     main = "Red de palabras por fragmentos (relaciones visibles)")
 
 ```
 
-## 📝 Conclusión
+> Un grafo donde cada nodo es una palabra, y las líneas entre ellas indican que esas palabras aparecen juntas en fragmentos de 5 oraciones. Estas conexiones muestran que muchas de las palabras importantes están asociadas entre sí repetidamente.
 
-Este análisis permite observar cómo la narrativa de Poe utiliza vocabulario emocional para generar tensión, ironía y sorpresa. El arco emocional, el conteo NRC y la red semántica revelan la estructura interna del relato. El enfoque digital empleado se basa en métodos similares a los usados por Rodrigo-Ruiz (2022) en la narrativa cervantina.
+## Conclusión
+
+Este análisis permite observar cómo la narrativa de Poe utiliza vocabulario emocional para generar tensión, ironía y sorpresa. El arco emocional, el conteo NRC y la red semántica revelan la estructura interna del relato. El enfoque digital empleado se basa en métodos similares a los usados por Rodrigo-Ruiz (2022) en la narrativa cervantina. El cuento no es solo gracioso ni solo macabro; se mueve entre asco, sorpresa, burla y algo de tristeza, generando una experiencia emocional, las palabras más usadas y conectadas (como momia, doctor, nariz, conde, egipcio) nos dicen que el texto está muy enfocado en el cuerpo humano y la ciencia.
+El gráfico de polaridad y el arco emocional muestran cómo cambia el tono del cuento varias veces. No es todo miedo ni todo comedia: hay una parte más tensa en el medio, también se nota que las emociones más fuertes en el texto son la anticipación, el asco y la sorpresa. Esto tiene sentido porque el cuento está lleno de cosas inesperadas, descripciones raras y escenas que incomodan. 
+Por último, la red de palabras ayuda a ver que los mismos conceptos se repiten y se conectan en distintas partes del cuento. Eso refuerza la idea de que hay una estructura clara, que todo gira alrededor del mismo grupo de temas y esto le da coherencia al texto de Poe.
