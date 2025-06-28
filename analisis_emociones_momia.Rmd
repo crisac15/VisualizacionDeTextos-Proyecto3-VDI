@@ -1,0 +1,174 @@
+---
+title: "Análisis de emociones en 'Conversación con una momia'"
+author: "Cristopher Acuña - Jerson Prendas"
+date: "`30/06/2025"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Librerías necesarias
+install.packages("stopwords")
+library(stopwords)
+library(tidyverse)
+library(ggwordcloud)
+library(syuzhet)
+library(tm)
+library(SnowballC)
+library(igraph)
+library(ggraph)
+library(tokenizers)
+library(tidytext)
+library(ggplot2)
+```
+
+## 📚 Introducción
+
+Este análisis se basa en la metodología propuesta por Débora Rodrigo-Ruiz (2022), utilizando análisis digital de emociones en textos literarios. Se aplica el análisis al cuento "Conversación con una momia" de Edgar Allan Poe, con el fin de explorar el vocabulario emocional, la polaridad narrativa y los recursos afectivos que intervienen en la construcción del texto.
+
+## 📥 Carga y limpieza del texto
+
+```{r}
+# Versión 1: texto limpio para wordcloud y red (SIN puntuación)
+texto <- readLines("Conversacion con una momia.txt", encoding = "UTF-8")
+texto <- tolower(paste(texto, collapse = " "))
+texto <- gsub("[[:punct:]]", "", texto)
+texto <- gsub("[0-9]", "", texto)
+
+# Versión 2: texto crudo para análisis narrativo (CON puntuación)
+texto_narrativo <- readLines("Conversacion con una momia.txt", encoding = "UTF-8")
+texto_narrativo <- paste(texto_narrativo, collapse = " ")
+```
+
+## ☁️ Nube de palabras emocionales
+
+```{r}
+datos <- tibble(texto = texto) %>%
+  unnest_tokens(palabra, texto) %>%
+  anti_join(stop_words %>% filter(lexicon == "snowball"), by = c("palabra" = "word")) %>%
+  filter(nchar(palabra) > 4) %>%
+  count(palabra, name = "frecuencia") %>%
+  arrange(desc(frecuencia))
+
+ggplot(datos, aes(
+  label = palabra,
+  size = frecuencia,
+  color = frecuencia
+)) +
+  geom_text_wordcloud_area(shape = "circle", rm_outside = TRUE) +
+  scale_size_area(max_size = 12) +
+  scale_color_gradient(low = "#1a9641", high = "#d7191c") +
+  theme_minimal() +
+  labs(title = "Nube de palabras emocionales")
+```
+
+## ⚖️ Análisis de polaridad emocional
+
+```{r}
+
+# 2. Dividir en oraciones
+oraciones <- get_sentences(texto_narrativo)
+
+# 3. Obtener emociones NRC en español por oración
+emociones <- get_nrc_sentiment(oraciones, lang = "spanish")
+
+# 4. Calcular polaridad: positivo - negativo
+polaridad <- emociones$positive - emociones$negative
+
+# 5. Verificar que haya variación emocional
+if (length(polaridad) > 2 && any(is.finite(polaridad)) && sd(polaridad) > 0) {
+  # Aplicar suavizado con DCT
+  arco <- get_dct_transform(polaridad,
+                            low_pass_size = min(length(polaridad), 20),
+                            scale_range = TRUE)
+
+  # 6. Graficar arco emocional
+  plot(arco, type = "l", col = "darkgreen", lwd = 2,
+       main = "Arco emocional de 'Conversación con una momia'",
+       xlab = "Progresión narrativa", ylab = "Polaridad emocional")
+  abline(h = 0, lty = 2, col = "gray")
+} else {
+  message("No se detectó suficiente polaridad en el texto completo.")
+}
+```
+
+## 📊 Conteo de emociones (NRC)
+
+```{r}
+nrc <- get_nrc_sentiment(get_sentences(texto))
+emociones_sum <- colSums(nrc[, 1:8])
+barplot(emociones_sum, las = 2, col = rainbow(8), main = "Conteo de emociones NRC")
+```
+
+## 🕸️ Red de palabras (coocurrencia)
+
+```{r}
+# Tokenizar oraciones
+oraciones <- unlist(tokenize_sentences(texto))
+
+# Definir stopwords completas y personalizadas
+stopwords_es <- stopwords("es", source = "snowball")
+
+# Procesar texto
+procesar_texto <- function(texto) {
+  corpus <- VCorpus(VectorSource(texto))
+  corpus <- tm_map(corpus, content_transformer(tolower))
+  corpus <- tm_map(corpus, removePunctuation)
+  corpus <- tm_map(corpus, removeNumbers)
+  corpus <- tm_map(corpus, removeWords, stopwords_es)
+  corpus <- tm_map(corpus, stemDocument, language = "spanish")
+  corpus <- tm_map(corpus, stripWhitespace)
+  return(corpus)
+}
+
+corpus_procesado <- procesar_texto(oraciones)
+
+# Term-Document Matrix
+tdm <- TermDocumentMatrix(corpus_procesado)
+mat <- as.matrix(tdm)
+
+# Filtrar palabras frecuentes y largas
+frecuencias <- rowSums(mat)
+top_terminos <- sort(frecuencias, decreasing = TRUE)
+top_nombres <- names(top_terminos[1:100])
+top_nombres <- top_nombres[nchar(top_nombres) >= 4]
+
+# Filtrar matriz
+mat_filtrado <- mat[top_nombres, ]
+mat_filtrado[mat_filtrado >= 1] <- 1
+
+# Coocurrencias
+cooc <- mat_filtrado %*% t(mat_filtrado)
+diag(cooc) <- 0
+cooc[cooc < 1] <- 0
+
+# Grafo
+g <- graph_from_adjacency_matrix(cooc, weighted = TRUE, mode = "max")
+g <- simplify(g)
+g <- delete_vertices(g, degree(g) == 0)
+
+# Visualizar si hay algo
+if (vcount(g) > 0 && ecount(g) > 0) {
+  set.seed(123)
+  layout <- layout_with_fr(g)
+  
+  plot(g,
+       layout = layout,
+       vertex.size = 6,
+       vertex.label.cex = 0.75,
+       vertex.label.dist = 0.4,
+       vertex.label.color = "black",
+       vertex.color = "lightgray",
+       edge.width = E(g)$weight,
+       edge.color = "gray70",
+       main = "Red de palabras más frecuentes")
+} else {
+  message("⚠️ La red está vacía. Intentá reducir el filtro de stopwords o aumentar el top_n.")
+}
+
+
+```
+
+## 📝 Conclusión
+
+Este análisis permite observar cómo la narrativa de Poe utiliza vocabulario emocional para generar tensión, ironía y sorpresa. El arco emocional, el conteo NRC y la red semántica revelan la estructura interna del relato. El enfoque digital empleado se basa en métodos similares a los usados por Rodrigo-Ruiz (2022) en la narrativa cervantina.
