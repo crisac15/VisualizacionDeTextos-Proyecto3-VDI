@@ -1,13 +1,19 @@
 ---
-title: "Análisis de emociones en 'Conversación con una momia'"
-author: "Cristopher Acuña - Jerson Prendas"
-date: "`30/06/2025"
-output: html_document
+title: "Análisis de emociones en *Conversación con una momia - Cuento de Edgar Allan Poe*"
+author: "Cristopher Acuña c.2022437718 - Jerson Prendas c.2022437678"
+date: "30 de junio del 2025"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    theme: readable
+    df_print: paged
+    highlight: tango
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-# Librerías necesarias
+# Librerías necesarias para el análisis
 library(stopwords)
 library(tidyverse)
 library(ggwordcloud)
@@ -20,14 +26,7 @@ library(tokenizers)
 library(tidytext)
 library(ggplot2)
 ```
-
-## Introducción
-
-Este análisis se basa en la metodología propuesta por Débora Rodrigo-Ruiz (2022), utilizando análisis digital de emociones en textos literarios. Se aplica el análisis al cuento "Conversación con una momia" de Edgar Allan Poe, con el fin de explorar el vocabulario emocional, la polaridad narrativa y los recursos afectivos que intervienen en la construcción del texto.
-
-## Carga y limpieza del texto
-
-```{r}
+```{r, include=FALSE}
 # Versión 1: texto limpio para wordcloud y red (SIN puntuación)
 texto <- readLines("Conversacion con una momia.txt", encoding = "UTF-8")
 texto <- tolower(paste(texto, collapse = " "))
@@ -39,9 +38,27 @@ texto_narrativo <- readLines("Conversacion con una momia.txt", encoding = "UTF-8
 texto_narrativo <- paste(texto_narrativo, collapse = " ")
 ```
 
-## Nube de palabras emocionales
+## Resumen
 
-```{r}
+Este documento presenta un análisis computacional del texto “Conversación con una momia” de Edgar Allan Poe, aplicando técnicas de visualización de datos textuales como nubes de palabras, análisis de polaridad, conteo de emociones, arco emocional y redes de co-ocurrencia léxica. Mediante estas herramientas, se examina la dimensión emocional, semántica y estructural del cuento, revelando patrones y tensiones en la narrativa. Se observa un léxico centrado en personajes y elementos técnicos, una prevalencia de emociones negativas como el asco, el miedo y la ira, y una arquitectura emocional no lineal que alterna entre ironía, racionalidad y desconcierto. La combinación de visualizaciones permite explorar el estilo de Poe desde una perspectiva crítica, mostrando cómo la obra articula sus recursos expresivos para generar un discurso ambivalente entre lo fantástico, lo filosófico y lo grotesco.
+
+## Abstract
+
+This document presents a computational analysis of Edgar Allan Poe’s short story “Some Words with a Mummy”, using textual visualization techniques such as word clouds, sentiment polarity analysis, emotion counts, emotional arc modeling, and lexical co-occurrence networks. Through these tools, the emotional, semantic, and structural layers of the narrative are examined, revealing patterns and tensions in the discourse. The lexicon is centered around characters and technical elements, with a predominance of negative emotions such as disgust, fear, and anger. The emotional architecture is nonlinear, alternating between irony, rationality, and unease. The combination of visualizations offers a critical perspective on Poe’s style, showing how the narrative constructs a complex interplay between the fantastic, the philosophical, and the grotesque.
+
+## 1.Introducción
+
+El análisis emocional de textos literarios ha adquirido relevancia en los estudios digitales por su capacidad para explorar la dimensión afectiva del lenguaje y su relación con la estructura narrativa. A través de herramientas computacionales aplicadas al procesamiento de texto, es posible identificar patrones de recurrencia léxica, dinámicas emocionales, y relaciones semánticas entre términos que no siempre son evidentes en una lectura convencional.
+
+Este documento aplica una metodología de análisis textual basada en el uso de R y paquetes especializados como ggwordcloud, syuzhet, tm, igraph y tidytext, siguiendo una lógica similar a estudios previos de análisis afectivo-literario. El objeto de estudio es el cuento “Conversación con una momia” de Edgar Allan Poe, una obra breve pero densa en ironía, crítica cultural y ambigüedad emocional.
+
+Esta obra nos ofrece una riqueza discursiva y a un potencial para revelar contrastes entre lo racional y lo fantástico, lo moderno y lo ancestral. El análisis busca responder cómo se estructura la emoción en el relato, qué elementos léxicos dominan el discurso, y de qué forma se conectan los distintos fragmentos a través de patrones semánticos recurrentes.
+
+Para ello, se emplean cinco visualizaciones principales: una nube de palabras que muestra la frecuencia léxica dominante; un gráfico de conteo emocional basado en el léxico NRC; una curva de polaridad narrativa que rastrea cambios emocionales por oración; un arco emocional suavizado que muestra la progresión afectiva global del cuento; y una red de co-ocurrencia de palabras que representa los vínculos semánticos más frecuentes entre conceptos. Estos recursos permiten articular una lectura crítica y cuantitativa del texto, proporcionando nuevos niveles de interpretación sobre el estilo y la estructura emocional de la obra.
+
+## 2.Frecuencia y distribución léxica: Nube de palabras emocionales
+
+```{r,echo=FALSE}
 stop_words <- get_stopwords(language = "es")
 
 datos <- tibble(texto = texto) %>%
@@ -58,17 +75,37 @@ ggplot(datos %>% slice_max(frecuencia, n = 120), aes(
 )) +
   geom_text_wordcloud_area(shape = "circle", rm_outside = TRUE) +
   scale_size_area(max_size = 16) +
-  scale_color_gradient(low = "#1a9641", high = "#d7191c") +
+  scale_color_gradient(low = "gray", high = "steelblue") +
   theme_minimal() +
   labs(title = "Nube de palabras emocionales (top 120)")
 
 ```
 
-> La nube de palabras destaca los términos más frecuentes del texto, una vez eliminadas las stopwords. Entre los más prominentes se encuentran “doctor”, “momia”, “conde”, “egipcio”, “usted” y “ponnonner”. El tamaño de cada palabra refleja su frecuencia de aparición.
+La nube de palabras obtenida permite identificar los términos más recurrentes en el corpus de “Conversación con una momia”. En ella destacan con mayor peso léxico palabras como “doctor”, “usted”, “momia”, “conde” y “pononner”, lo cual reafirma el carácter altamente dialógico del relato. Este patrón léxico no solo da cuenta de los personajes centrales, sino también de la arquitectura discursiva que Edgar Allan Poe construye a partir del intercambio verbal entre estos agentes.
 
-## Análisis de Polaridad
+Asimismo, el campo semántico evocado por términos como “egipcio”, “embalsamamiento”, “vidrio” o “ataúd” enmarca la narrativa dentro de un contexto arqueológico, casi médico, en el que ciencia y muerte se cruzan constantemente. Esto no solo refuerza el escenario físico del cuento, sino que también funciona como vehículo para una crítica implícita a la modernidad, tema que será constante en el resto del análisis.
 
-```{r}
+Por último, la aparición de términos como “saber”, “discurso”, “palabra” y “pregunta” evidencia el carácter reflexivo del texto, cuya estructura tiende hacia un tipo de "ensayo filosófico". La nube, en este sentido, no solo presenta la densidad de ocurrencia léxica, sino que también abre la posibilidad de interpretar la obra como un ejercicio de confrontación entre sistemas de conocimiento.
+
+## 3.Taxonomía emocional (modelo NRC)
+
+```{r,echo=FALSE}
+nrc <- get_nrc_sentiment(get_sentences(texto))
+emociones_sum <- colSums(nrc[, 1:8])
+barplot(emociones_sum, las = 2, col = rainbow(8), main = "Conteo de emociones NRC")
+```
+
+El modelo NRC permite descomponer el discurso narrativo en sus componentes afectivos básicos, distribuyéndolos en ocho categorías emocionales universales: ira (anger), anticipación, asco (disgust), miedo (fear), alegría (joy), tristeza (sadness), sorpresa (surprise) y confianza (trust). Esta visualización revela una prevalencia destacada de la confianza, seguida por emociones negativas como la ira, asco y miedo.
+
+La prominencia de trust no responde a una atmósfera afectiva cálida, sino más bien a una confianza cognitiva derivada del tono erudito y lógico con que la momia estructura su discurso. Este efecto es irónico: el lector confía en un cadáver milenario que, mediante una retórica impecable, socava las certezas de la civilización moderna.
+
+Por otro lado, la elevada presencia de emociones perturbadoras como anger y disgust remite al carácter grotesco y satírico de la obra. Estas emociones no están asociadas a momentos de violencia explícita, sino a lo inquietante del saber técnico aplicado al cuerpo, a la desmitificación de la muerte y al cuestionamiento del presente desde el pasado.
+
+En términos estilísticos, la combinación de emociones aparentemente contradictorias refuerza el tono ambivalente de Poe: su narrativa no busca consuelo emocional ni catarsis, sino producir un estado de incomodidad reflexiva. La escasa presencia de emociones como anticipation y surprise confirma que el texto apuesta más por la confrontación intelectual que por el suspense tradicional, a pesar de su envoltorio fantástico.
+
+## 4.Dinámica de polaridad narrativa
+
+```{r,echo=FALSE}
 oraciones <- get_sentences(texto_narrativo)
 polaridad <- get_sentiment(oraciones, method = "syuzhet", lang = "spanish")
 
@@ -81,21 +118,17 @@ ggplot(data = data.frame(posicion = seq_along(polaridad), polaridad),
   theme_minimal()
 ```
 
-> La polaridad del texto oscila entre valores positivos y negativos, con una tendencia en general hacia la zona neutral. Sin embargo, hay picos negativos muy marcados en algunas secciones, así como picos positivos en algunas escenas.
+Este gráfico ilustra cómo varía la polaridad emocional del texto, es decir, la proporción entre emociones positivas y negativas, distribuidas por oración a lo largo de la narración. En “Conversación con una momia”, la curva de polaridad evidencia una oscilación constante entre tensiones negativas y repuntes de positividad, un patrón estilístico frecuente en la obra de Poe.
 
-## Conteo de emociones (NRC)
+El comienzo, con predominancia de valores negativos, sugiere una ambientación sombría vinculada a lo fúnebre y lo grotesco: el cuerpo, el experimento, la muerte. Sin embargo, al avanzar, se registran subidas significativas coincidentes con la intervención racional e inesperadamente cálida de la momia, lo que genera un efecto de descolocación emocional en el lector.
 
-```{r}
-nrc <- get_nrc_sentiment(get_sentences(texto))
-emociones_sum <- colSums(nrc[, 1:8])
-barplot(emociones_sum, las = 2, col = rainbow(8), main = "Conteo de emociones NRC")
-```
+Las caídas abruptas, por su parte, coinciden con momentos donde se reintroduce el escepticismo, el sarcasmo o la confrontación entre visiones del mundo (moderna vs. antigua). Esto refuerza la idea de que la narrativa de Poe no propone una evolución emocional estable, sino una sucesión de contrastes irónicos donde lo grotesco y lo filosófico se entrelazan.
 
-> Hay mucho lenguaje que genera expectativa o curiosidad, cosas inesperadas, incomodidad emocional y desagrado físico o moral, así como confianza. Eso se relaciona con escenas donde experimentan con la momia o suceden cosas fuera de lo normal.
+Esta dinámica de polaridad muestra que la arquitectura emocional del cuento no busca identificación afectiva, sino una experiencia intelectualizada del malestar, la incomodidad o el asombro racional.
 
-## ️Arco Emocional
+## 5.Arco emocional suavizado
 
-```{r}
+```{r,echo=FALSE}
 
 # 1. Dividir en oraciones
 oraciones <- get_sentences(texto_narrativo)
@@ -114,7 +147,7 @@ if (length(polaridad) > 2 && any(is.finite(polaridad)) && sd(polaridad) > 0) {
                             scale_range = TRUE)
 
   # 5. Graficar arco emocional
-  plot(arco, type = "l", col = "darkgreen", lwd = 2,
+  plot(arco, type = "l", col = "steelblue", lwd = 2,
        main = "Arco emocional de 'Conversación con una momia'",
        xlab = "Progresión narrativa", ylab = "Polaridad emocional")
   abline(h = 0, lty = 2, col = "gray")
@@ -123,15 +156,19 @@ if (length(polaridad) > 2 && any(is.finite(polaridad)) && sd(polaridad) > 0) {
 }
 ```
 
-> Una curva suave que resume cómo varía la emoción a lo largo del cuento completo. Empieza neutro, baja en la parte de más tensión (la resurrección y el golpe al doctor), y luego sube un poco hacia el final. Esa caída en el centro del gráfico coincide con el momento perturbador de la historia.
+El arco emocional representa la curva de intensidad afectiva a lo largo del relato, utilizando una transformación DCT para suavizar las variaciones de polaridad por oración. Esta técnica permite identificar la progresión afectiva del texto sin el ruido de la granularidad excesiva.
 
-## 🕸️ Red de palabras (coocurrencia)
+En el caso de “Conversación con una momia”, el arco muestra un inicio con neutralidad emocional, que rápidamente desciende hacia niveles negativos conforme se introduce el contexto fúnebre y experimental. Este descenso parece estar asociado con el procedimiento quirúrgico y la exposición al cadáver, elementos que generan incomodidad narrativa.
 
-```{r}
-# Leer de nuevo el texto y unir el texto completo
-texto <- readLines("Conversacion con una momia.txt", encoding = "UTF-8")
-texto <- paste(texto, collapse = " ")
+A medida que avanza la historia, se observa un ascenso sostenido en la polaridad, posiblemente vinculado con la reanimación de la momia y su inesperada lucidez. Esta parte de la curva refleja un momento de fascinación, sorpresa racional y discurso lógico, que despierta en el lector una forma de interés afectivo que roza lo positivo.
 
+Hacia el final, el arco desciende nuevamente, marcando un cierre donde predomina el escepticismo, la crítica y la incomodidad intelectual. La sabiduría milenaria de la momia contrasta con la banalidad moderna, generando un final que no apela a la emoción directa, sino a la reflexión amarga sobre el progreso y la civilización.
+
+Este tipo de visualización, permite visualizar la estructura afectiva profunda de un texto, revelando un diseño narrativo que articula momentos de tensión y alivio con precisión casi matemática.
+
+## 6.Red de co-ocurrencias léxicas
+
+```{r,echo=FALSE}
 # Dividir en oraciones
 oraciones <- unlist(tokenize_sentences(texto))
 
@@ -171,7 +208,7 @@ diag(cooc) <- 0
 cooc <- cooc[rowSums(cooc) > 0, colSums(cooc) > 0]
 
 # Crear y visualizar grafo
-g <- graph.adjacency(cooc, weighted = TRUE, mode = "undirected")
+g <- graph_from_adjacency_matrix(cooc, weighted = TRUE, mode = "max")
 g <- simplify(g)
 
 # Atributos visuales
@@ -190,14 +227,34 @@ plot(g,
      vertex.size = 8,
      vertex.label.cex = 0.9,
      vertex.label.dist = 0.4,
-     main = "Red de palabras por fragmentos (relaciones visibles)")
+     main = "Red de palabras(relaciones visibles)")
 
 ```
 
-> Un grafo donde cada nodo es una palabra, y las líneas entre ellas indican que esas palabras aparecen juntas en fragmentos de 5 oraciones. Estas conexiones muestran que muchas de las palabras importantes están asociadas entre sí repetidamente.
+La visualización muestra la red de co-ocurrencias construida a partir de los fragmentos del cuento “Conversación con una momia”, en donde los nodos representan palabras frecuentes y las aristas reflejan cuán a menudo esas palabras aparecen juntas dentro de fragmentos textuales.
 
-## Conclusión
+A nivel visual, se evidencia una estructura extremadamente densa, con conexiones múltiples entre casi todos los nodos. Esto indica una alta reiteración semántica en el texto, es decir, una tendencia marcada a reutilizar grupos de palabras relacionadas en distintas secciones del relato. No se observan comunidades claramente aisladas, lo que sugiere que los temas del cuento están estrechamente entrelazados.
 
-Este análisis permite observar cómo la narrativa de Poe utiliza vocabulario emocional para generar tensión, ironía y sorpresa. El arco emocional, el conteo NRC y la red semántica revelan la estructura interna del relato. El enfoque digital empleado se basa en métodos similares a los usados por Rodrigo-Ruiz (2022) en la narrativa cervantina. El cuento no es solo gracioso ni solo macabro; se mueve entre asco, sorpresa, burla y algo de tristeza, generando una experiencia emocional, las palabras más usadas y conectadas (como momia, doctor, nariz, conde, egipcio) nos dicen que el texto está muy enfocado en el cuerpo humano y la ciencia.
-El gráfico de polaridad y el arco emocional muestran cómo cambia el tono del cuento varias veces. No es todo miedo ni todo comedia: hay una parte más tensa en el medio, también se nota que las emociones más fuertes en el texto son la anticipación, el asco y la sorpresa. Esto tiene sentido porque el cuento está lleno de cosas inesperadas, descripciones raras y escenas que incomodan. 
-Por último, la red de palabras ayuda a ver que los mismos conceptos se repiten y se conectan en distintas partes del cuento. Eso refuerza la idea de que hay una estructura clara, que todo gira alrededor del mismo grupo de temas y esto le da coherencia al texto de Poe.
+En el centro del grafo se posicionan palabras como “usted”, “egipto”, “egipcio” y “conde”, las cuales actúan como puentes discursivos entre otros conceptos. Esta centralidad confirma que estos términos no solo son frecuentes, sino que también están implicados en múltiples asociaciones semánticas, funcionando como núcleos organizadores del texto.
+
+A su alrededor, encontramos términos que, aunque secundarios, refuerzan los mismos campos léxicos: “doctor”, “vida”, “boca”, “momento”, “forma”, ojos, y “pies”, todos ellos vinculados al cuerpo humano, el proceso de reanimación, o el conocimiento médico y arqueológico.
+
+El alto nivel de conectividad —con pocas palabras periféricas y una red saturada— también puede interpretarse como un reflejo del estilo discursivo de Poe en este cuento: un uso reiterativo, articulado y cargado de significación del lenguaje, que contribuye a sostener un tono constante de reflexión crítica y tensión narrativa. La ausencia de “islas léxicas” demuestra que incluso los términos menos frecuentes están integrados a la lógica estructural del relato.
+
+En suma, esta red confirma la cohesión interna del texto y su estrategia de construcción por repetición temática. La narrativa se desarrolla no como una sucesión de eventos aislados, sino como un discurso deliberadamente interconectado, donde cada fragmento apoya y refuerza los mismos conceptos clave, garantizando la coherencia semántica y emocional del relato.
+
+## 7.Conclusión
+
+A partir de los análisis realizados, se pueden inferir varias conclusiones relevantes sobre la estructura emocional y estilística de “Conversación con una momia”.
+
+En primer lugar, la distribución léxica deja en evidencia una narrativa centrada en el diálogo entre figuras simbólicas —la momia, el doctor y el narrador—, donde los ejes temáticos giran en torno a la ciencia, la muerte, la antigüedad y la confrontación entre culturas. Las palabras más frecuentes no solo aluden a personajes, sino también a procedimientos técnicos y elementos materiales, lo que refuerza la ambientación híbrida entre lo médico y lo fantástico.
+
+En segundo lugar, la taxonomía emocional evidencia un dominio de emociones negativas como la ira, el asco y el miedo, lo cual está en consonancia con la atmósfera grotesca y el tono provocador de la obra. La confianza aparece también como una emoción central, aunque no desde una dimensión afectiva tradicional, sino como una consecuencia del tono ilustrado, lógico y retórico con que se expresa la figura de la momia.
+
+La polaridad narrativa revela una curva emocional inestable, con múltiples cambios de dirección afectiva. Esto sugiere una intencionalidad estética basada en la alternancia entre incomodidad y fascinación, lo que refuerza el efecto irónico y crítico del cuento. La narrativa no busca generar una progresión emocional lineal, sino un vaivén entre lo racional, lo absurdo y lo moralmente ambiguo.
+
+El arco emocional suavizado permite ver que la estructura del texto no solo es discursiva, sino también rítmica. A través de las emociones, el relato genera un patrón de tensiones y alivios que acompaña su desarrollo argumental, reforzando los momentos de descubrimiento, confrontación y desencanto. Esta progresión emocional no es incidental, sino parte del dispositivo narrativo que sostiene el estilo del cuento.
+
+Finalmente, la red de co-ocurrencias confirma que el texto opera mediante una lógica de repetición estratégica, donde ciertos términos no solo se reiteran, sino que se asocian de forma sistemática con otras unidades de significado. Esta estructura refuerza la cohesión temática del relato y evidencia un diseño semántico intencionado que hace del cuento una pieza dialógica, crítica y filosóficamente cargada.
+
+En conjunto, estas visualizaciones permiten afirmar que “Conversación con una momia” no es solo un relato fantástico o humorístico: es una construcción retórica que utiliza el lenguaje, la emoción y la estructura léxica para confrontar ideas sobre la modernidad, la muerte, el conocimiento y el poder. El estilo de Poe se manifiesta aquí como una mezcla entre sarcasmo, erudición y provocación, sostenida por una arquitectura textual densa y emocionalmente ambigua.
